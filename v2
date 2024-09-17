@@ -70,8 +70,15 @@ ggplot(gum, aes(x = factor(trtgroup), y = pd, color = factor(trtgroup))) +
 
 #to check normality lets fit a model 
 
-model_attach <- lm(attach ~ factor(trtgroup), data = gum)
+model_attach <- lm(attach ~ group1 +group3 +group4 +group5, data = gum)
 model_attach
+
+summary(model_attach)
+
+# model for pocket depth
+model_pd <- lm(pd ~ group1 +group3 + group4 +group5, data=gum)
+model_pd
+
 
 #plot residuals
 # Extract residuals
