@@ -1,0 +1,84 @@
+#draft 2 by rob 
+
+
+#load libraries
+library(tidyverse)
+library(dplyr)
+library(lme4)
+library(ggplot2)
+
+
+#load dataset and head the data
+gum <-read.csv("C:/Users/rrm10/OneDrive/Desktop/advanced data analysis/Project1_data.csv")
+
+
+
+
+#create base attachment and pocket depth outcome variables 
+
+gum <- gum %>%
+  mutate( 
+    attach = attach1year - attachbase,
+    pd     = pd1year    - pdbase
+    )
+
+#data inspection shows now shows 13 variables
+str(gum)
+
+
+#create dummy variables for groups, for scatter plots 
+
+gum <-gum %>%
+  mutate(
+    group1 = if_else(trtgroup == 1,1,0),
+    group2 = if_else(trtgroup == 2,1,0),
+    group3 = if_else(trtgroup == 3,1,0),
+    group4 = if_else(trtgroup == 4,1,0),
+    group5 = if_else(trtgroup == 5,1,0)
+  )
+
+gum
+  )
+
+
+str(gum)
+
+#test assumptions of regression: linearity, independemce, homeoscadacity, errors
+# scatter plot for attachment loss 
+ggplot(gum, aes(x = factor(trtgroup), y = attach, color = factor(trtgroup))) +
+  geom_point() +
+  labs(
+    title = "Scatter Plot of Attachment Loss by Treatment Group",
+    x = "Treatment Group",
+    y = "Attachment Loss",
+    color = "Treatment Group"
+  ) +
+  theme_minimal()
+
+# scatter plot for pocket depth 
+ggplot(gum, aes(x = factor(trtgroup), y = pd, color = factor(trtgroup))) +
+  geom_point() +
+  labs(
+    title = "Scatter Plot of Pocket Depth by Treatment Group",
+    x = "Treatment Group",
+    y = "Pocket Depth",
+    color = "Treatment Group"
+  ) +
+  theme_minimal()
+
+
+
+#to check normality lets fit a model 
+
+model_attach <- lm(attach ~ factor(trtgroup), data = gum)
+model_attach
+
+#plot residuals
+# Extract residuals
+residuals <- resid(model_attach)
+
+# Plot histogram of residuals
+ggplot(data = NULL, aes(x = residuals)) +
+  geom_histogram(bins = 30, fill = "blue", color = "black") +
+  labs(title = "Histogram of Residuals", x = "Residuals", y = "Frequency") +
+  theme_minimal()
