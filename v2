@@ -46,7 +46,7 @@ str(gum)
 #test assumptions of regression: linearity, independemce, homeoscadacity, errors
 # scatter plot for attachment loss 
 ggplot(gum, aes(x = factor(trtgroup), y = attach, color = factor(trtgroup))) +
-  geom_point() +
+  geom_boxplot() +
   labs(
     title = "Scatter Plot of Attachment Loss by Treatment Group",
     x = "Treatment Group",
