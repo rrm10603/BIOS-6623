@@ -194,6 +194,8 @@ ggplot(data = NULL, aes(x = seq_along(a_resid), y = a_resid)) +
        y = "Residuals") +
   theme_minimal()
 
+#x = seq_along(a_residuals) creates a sequence of numbers from 1 to the length of a_residuals, effectively creating an index for each residual. This is useful for visualizing the order of residuals.
+
 
 ```
 
