@@ -1,0 +1,201 @@
+---
+title: "RMD of Project"
+author: "Rob McNeil"
+date: "2024-09-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r, echo= FALSE}
+#load libraries 
+library(tidyverse)
+library(dplyr)
+library(lme4)
+library(ggplot2)
+
+#read the dataset
+gum <-read.csv("C:/Users/rrm10/OneDrive/Desktop/advanced data analysis/Project1_data.csv")
+
+```
+
+
+```{r, echo=FALSE}
+
+#create base attachment and pocket depth outcome variables 
+gum <- gum %>%
+  mutate( 
+    attach = attach1year - attachbase,
+    pd     = pd1year    - pdbase
+  )
+```
+
+
+```{r,echo=FALSE}
+
+#one possible for regression- create dumy variables for groups?
+gum_with_groups <-gum %>%
+  mutate(
+    group1 = if_else(trtgroup == 1,1,0),
+    group2 = if_else(trtgroup == 2,1,0),
+    group3 = if_else(trtgroup == 3,1,0),
+    group4 = if_else(trtgroup == 4,1,0),
+    group5 = if_else(trtgroup == 5,1,0)
+  )
+
+```
+
+```{r, echo=FALSE}
+#fit a model with my groups as dummy variables
+model_attach <- lm(attach ~ group1 +group3 +group4 +group5, data = gum_with_groups)
+model_attach
+
+summary(model_attach)
+#make additional model for group 2
+
+```
+
+
+```{r, echo= FALSE}
+#model attachment loss with no groups
+model_att_factored <- lm(attach ~ factor(trtgroup), data =gum)
+summary(model_att_factored)
+
+model_pd <- lm(pd~ factor(trtgroup), data=gum)
+summary(model_pd)
+
+#zoey added this in 
+#gum$trtgroup<-group(gum$trtgroup2)
+#model_att_test <- lm(attach ~ trtgroup2)
+
+```
+
+
+
+```{r, echo = FALSE}
+#test assumption of linearity 
+#dont need to test for linearity with categorical variables 
+#good graph for presentation 
+ggplot(gum, aes(x = factor(trtgroup), y = attach, color = factor(trtgroup))) +
+  geom_point() +
+  labs(
+    title = "Scatter Plot of Attachment Loss by Treatment Group",
+    x = "Treatment Group",
+    y = "Attachment Loss",
+    color = "Treatment Group"
+  ) +
+  theme_minimal()
+```
+
+
+```{r, echo = FALSE}
+#dont need linearity for assumption with categorical predictor variables 
+ggplot(gum, aes(x = factor(trtgroup), y = pd, color = factor(trtgroup))) +
+  geom_point() +
+  labs(
+    title = "Scatter Plot of Pocket Depth by Treatment Group",
+    x = "Treatment Group",
+    y = "Pocket Depth",
+    color = "Treatment Group"
+  ) +
+  theme_minimal()
+
+```
+```{r, echo = false}
+#extract residuals from attachment loss model 
+#test normality with a Q-Q plot 
+res_attach <- resid(model_attach)
+qqnorm(res_attach)
+qqline(res_attach)
+```
+
+
+```{r, echo=FALSE}
+
+#calculate residuals and fitted values, of my models 
+
+a_fitted <- predict(model_att_factored)
+a_resid <-  resid(model_att_factored)
+
+pd_fitted <- predict(model_pd)
+pd_resid <- resid(model_pd)
+
+ 
+
+
+```
+
+
+#noted tiny outlier, ew may need to study in further stufy 
+
+
+```{r, echo=FALSE}
+
+# Plot Residuals vs Fitted for attachment depth  (Homoscedasticity)
+ggplot(data = NULL, aes(x = a_fitted, y = a_resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Attachment Depth Residuals vs Fitted", 
+       x = "Fitted Values",
+       y = "Residuals") +
+  theme_minimal()
+
+
+
+#plot residuals vs fitted for pocket depth 
+ggplot(data = NULL, aes(x = pd_fitted, y = pd_resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Attachment Depth Residuals vs Fitted", 
+       x = "Fitted Values",
+       y = "Residuals") +
+  theme_minimal()
+
+```
+
+
+Normality 
+```{r, echo = FALSE}
+
+# QQ of attachment loss Plot for Normality
+ggplot(data = NULL, aes(sample = a_resid)) +
+  geom_qq() +
+  geom_qq_line() +
+  labs(title = "QQ Plot of Attachment Loss Model Residuals",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+
+
+#  QQ Plot for Normality (pocket depth)
+ggplot(data = NULL, aes(sample = pd_resid)) +
+  geom_qq() +
+  geom_qq_line() +
+  labs(title = "QQ Plot of Pocket Depth Model Residuals",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+
+```
+
+```{r, echo = FALSE}
+
+# Plot Residuals vs Index (Independence)
+ggplot(data = NULL, aes(x = seq_along(a_resid), y = a_resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuals vs Index",
+       x = "Index",
+       y = "Residuals") +
+  theme_minimal()
+
+
+```
+
+
+
