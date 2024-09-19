@@ -197,5 +197,18 @@ ggplot(data = NULL, aes(x = seq_along(a_resid), y = a_resid)) +
 
 ```
 
+```{r, echo = FALSE}
+#for pocket Depth 
+ggplot(data = NULL, aes(x = seq_along(pd_resid), y = pd_resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Residuals vs Index (Pocket Depth)",
+       x = "Index",
+       y = "Residuals") +
+  theme_minimal()
+
+
+```
+
 
 
