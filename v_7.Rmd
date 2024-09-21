@@ -6,7 +6,7 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
 
@@ -18,39 +18,35 @@ library(tidyverse)
 library(dplyr)
 library(lme4)
 library(ggplot2)
-
-#read the dataset
-#gum <-read.csv("C:/Users/rrm10/OneDrive/Desktop/advanced data analysis/Project1_data.csv")
-
-# Jessicas dataset location 
+library(VIM)
+library(naniar)
 library(readr)
+library(kableExtra)
+library(finalfit)
+library(broom)
+
 getwd()
-gum <- read_csv("/Users/jessicachaffee/Downloads/Project1_data.csv")
+gum <- read_csv("C:/Users/rrm10/OneDrive/Desktop/advanced data analysis/Project1_data.csv")
 #View(Project1_data)
 ```
-```{r}
-# Install packages to assess missingness
-install.packages("VIM")
-install.packages("naniar")
 
-
-```
 
 ```{r}
 # Visualize where data is missing 
 
-library(VIM)
-library(naniar)
 
 aggr(gum, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(gum), cex.axis=0.7, gap=3, ylab=c("Missing data","Pattern"))
 
 vis_miss(gum)
 
 ```
+
+
+
 ```{r}
 gum$attach1yr_missing <- ifelse(is.na(gum$attach1year), 1, 0)
 gum$pd1yr_missing <- ifelse(is.na(gum$pd1year),1,0)
-library(dplyr)
+
 
 # Find the percent of each treatent group that has missing follow up data 
 missing_percentage_table_by_trtgroup <- gum %>%
@@ -103,6 +99,7 @@ print(missing_percentage_table_by_smoker)
 ```
 ```{r}
 # Run chi-squared to see if missing data is significantly associated with any of the demographic variables 
+#getting warning about accuracy of chi-square test when i run this chunk 
 
 # For gender
 chisq_test_gender_attach <- chisq.test(table(gum$attach1yr_missing, gum$gender))
@@ -161,14 +158,14 @@ gum_with_groups <-gum %>%
 
 
 ```{r}
-install.packages("tidyr")
-install.packages("knitr")
+#install.packages("tidyr")
+#install.packages("knitr")
 ```
 
 ```{r}
-library(tidyr)
-library(dplyr)
-library(knitr)
+#library(tidyr)
+#library(dplyr)
+#library(knitr)
 # Create a summary table
 demographic_summary <- gum %>%
   group_by(trtgroup) %>%
@@ -200,11 +197,7 @@ kable(demographic_summary, caption = "Demographic and Other Characteristic Infor
 
 ```
 
-```{r}
-#install.packages("kableExtra")
-library(kableExtra)
-# Getting error because I already have kableExtra installed so it is commented out but if you do not yet have it installed please remove the hashtag to install it
-```
+
 ```{r}
 # Print the summary table with lines between rows
 kable(demographic_summary, caption = "Demographic and Other Characteristic Information by Treatment Group") %>%
@@ -230,20 +223,43 @@ summary(model_attach)
 #model attachment loss with no groups
 model_att_factored <- lm(attach ~ factor(trtgroup), data =gum)
 summary(model_att_factored)
+confint(model_att_factored, level = 0.95)
 
 model_pd <- lm(pd~ factor(trtgroup), data=gum)
 summary(model_pd)
-
+confint(model_pd, level = 0.95)
 #zoey added this in 
 #gum$trtgroup<-group(gum$trtgroup2)
 #model_att_test <- lm(attach ~ trtgroup2)
 
 ```
 
-```{r}
-#install.packages("tidyverse")
-library(tidyverse)
+```{r, echo=FALSE}
+
+#creating output for model summaries, including confidence intervals 
+# Get tidy summaries and confidence intervals
+att_summary <- tidy(model_att_factored) %>%
+    mutate(Conf.Low = confint(model_att_factored)[,1],
+           Conf.High = confint(model_att_factored)[,2])
+
+pd_summary <- tidy(model_pd) %>%
+    mutate(Conf.Low = confint(model_pd)[,1],
+           Conf.High = confint(model_pd)[,2])
+
+# Combine summaries
+combined_summary <- bind_rows(
+    mutate(att_summary, Model = "Attach"),
+    mutate(pd_summary, Model = "PD")
+)
+
+# Create a nice table
+combined_summary %>%
+    select(Model, term, estimate, std.error, statistic, p.value, Conf.Low, Conf.High) %>%
+    kbl(caption = "Model Summaries with Confidence Intervals") %>%
+    kable_styling(full_width = F)
+
 ```
+
 
 
 ```{r, echo = FALSE}
@@ -251,9 +267,9 @@ library(tidyverse)
 #dont need to test for linearity with categorical variables 
 #good graph for presentation 
 ggplot(gum, aes(x = factor(trtgroup), y = attach, color = factor(trtgroup))) +
-  geom_point() +
+  geom_boxplot() +
   labs(
-    title = "Scatter Plot of Attachment Loss by Treatment Group",
+    title = "Bx Plot of Attachment Loss by Treatment Group",
     x = "Treatment Group",
     y = "Attachment Loss",
     color = "Treatment Group"
@@ -265,7 +281,7 @@ ggplot(gum, aes(x = factor(trtgroup), y = attach, color = factor(trtgroup))) +
 ```{r, echo = FALSE}
 #dont need linearity for assumption with categorical predictor variables 
 ggplot(gum, aes(x = factor(trtgroup), y = pd, color = factor(trtgroup))) +
-  geom_point() +
+  geom_boxplot() +
   labs(
     title = "Scatter Plot of Pocket Depth by Treatment Group",
     x = "Treatment Group",
@@ -275,13 +291,13 @@ ggplot(gum, aes(x = factor(trtgroup), y = pd, color = factor(trtgroup))) +
   theme_minimal()
 
 ```
-```{r, echo = false}
+#```{r, echo = false}
 #extract residuals from attachment loss model 
 #test normality with a Q-Q plot 
-res_attach <- resid(model_attach)
-qqnorm(res_attach)
-qqline(res_attach)
-```
+#res_attach <- resid(model_attach)
+#qqnorm(res_attach)
+#qqline(res_attach)
+#```
 
 
 ```{r, echo=FALSE}
@@ -409,15 +425,42 @@ summary(manova_model, test = "Pillai")
 
 ```
 
+```{r, echo = FALSE}
+
+#making output 
+# Get the summary of the MANOVA model using Pillai's test
+manova_summary <- summary(manova_model, test = "Pillai")
+
+# Extract relevant results into a tidy format
+manova_results <- data.frame(
+    Effect = rownames(manova_summary$stats),
+    Df = manova_summary$stats[, "Df"],
+    Pillai = manova_summary$stats[, "Pillai"],
+    approx_F = manova_summary$stats[, "approx F"],
+    num_Df = manova_summary$stats[, "num Df"],
+    den_Df = manova_summary$stats[, "den Df"],
+    p.value = manova_summary$stats[, "Pr(>F)"]
+)
+
+# Remove the "Residuals" row for clarity
+manova_results <- manova_results[-which(manova_results$Effect == "Residuals"), ]
+
+# Create a nice table
+manova_results %>%
+    kbl(caption = "MANOVA Results (Pillai's Trace)") %>%
+    kable_styling(full_width = F)
+
+
+
+```
+
 ```{r}
 # Univariate ANOVA for each outcome
 summary.aov(manova_model)
 
 ```
 
-```{r}
-library(ggplot2)
-```
+
 ```{r}
 
 gum_summary <- gum %>%
