@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 
 
-```{r, echo= FALSE}
+```{r}
 #load libraries 
 library(tidyverse)
 library(dplyr)
@@ -25,10 +25,12 @@ library(kableExtra)
 library(finalfit)
 library(broom)
 library(sjPlot)
+library(StepReg)
 
 getwd()
 gum <- read_csv("C:/Users/rrm10/OneDrive/Desktop/advanced data analysis/Project1_data.csv")
 #View(Project1_data)
+
 ```
 
 
@@ -130,11 +132,14 @@ print(chisq_test_smoker_attach)
 chisq_test_smoker_pd <- chisq.test(table(gum$pd1yr_missing, gum$smoker))
 print(chisq_test_smoker_pd)
 ```
+
+
+
 ```{r}
-#creat correlation matrix 
+#create correlation matrix 
 
 gum_clean <- gum %>%
-     select(pdbase, attachbase, pd1year, attach1year) %>%
+     select(pdbase, attachbase, pd1year, attach1year, gender, age, race, sites) %>%
      na.omit() 
 
 # S Calculate the correlation matrix
@@ -145,7 +150,7 @@ gum_clean <- gum %>%
  #matrix shows correlation, appropriate to use change variable. 
 ```
 
-```{r, echo=FALSE}
+```{r}
 
 #create base attachment and pocket depth outcome variables 
 gum <- gum %>%
@@ -156,7 +161,7 @@ gum <- gum %>%
 ```
 
 
-```{r,echo=FALSE}
+```{r}
 
 #one possible for regression- create dumy variables for groups?
 gum_with_groups <- gum %>%
@@ -179,13 +184,11 @@ gum_with_groups <- gum %>%
 ```
 
 
-```{r}
-#install.packages("tidyr")
-#install.packages("knitr")
-```
+
 
 ```{r}
 
+#code for table 1 
 demographic_summary <- gum %>%
   group_by(trtgroup) %>%
   summarise(
@@ -220,7 +223,7 @@ kable(demographic_summary, caption = "Table 1: Demographic and Other Characteris
 
 
 ```{r}
-# Print the summary table with lines between rows
+# Print the summary table 1 with lines between rows
 kable(demographic_summary, caption = "Table 1: Demographic and Other Characteristic Information by Treatment Group") %>%
   kable_styling() %>%
   row_spec(0, bold = TRUE) %>% # Bold the header
@@ -229,9 +232,65 @@ kable(demographic_summary, caption = "Table 1: Demographic and Other Characteris
 ```
 
 
-```{r, echo=FALSE}
+
+```{r}
+#fit a model with all variables
+model_attach_full <- lm(attach ~ group1 +group3 +group4 +group5 + age + gender + smoker + sites + race, data = gum_with_groups)
+
+
+#make additional model for pocket depth, full
+model_pd_full <- lm(pd ~ group1 +group3 +group4 +group5 + age + gender + smoker + sites + race, data = gum_with_groups)
+
+
+#Some are showing significance but not after the Bonferroni adjustment
+
+
+```
+
+```{r}
+#perform stepwise regression for model selection 
+# Remove rows with NA values in the relevant columns
+gum_clean <- gum_with_groups %>%
+  filter(!is.na(attach) & !is.na(group1) & !is.na(group2) & 
+         !is.na(group3) & !is.na(group4) & !is.na(group5) & 
+         !is.na(age) & !is.na(gender) & !is.na(smoker) & 
+         !is.na(sites) & !is.na(race))
+
+# Define the formula for attachment
+attach_formula <- attach ~ trtgroup + age + gender + smoker + sites + race
+
+# Perform stepwise regression for attachment on the cleaned data
+stepwise_model_attach <- stepwise(formula = attach_formula,
+                                   data = gum_clean,
+                                   type = "linear",
+                                   include = c('trtgroup'), # Adjust as needed
+                                   strategy = "bidirection",
+                                   metric = c("AIC", "BIC"))
+
+# view stepwise model
+stepwise_model_attach
+
+#for pocket depth
+
+# Define the formula for attachment
+pd_formula <- pd ~ trtgroup + age + gender + smoker + sites + race
+
+# Perform stepwise regression for attachment on the cleaned data
+stepwise_model_pd <- stepwise(formula = pd_formula,
+                                   data = gum_clean,
+                                   type = "linear",
+                                   include = c('trtgroup'), # Adjust as needed
+                                   strategy = "bidirection",
+                                   metric = c("AIC", "BIC"))
+stepwise_model_pd
+```
+
+
+
+Linear Regression 
+```{r}
 #fit a model with my groups as dummy variables
-model_attach <- lm(attach ~ group1 +group3 +group4 +group5 +gender, data = gum_with_groups)
+model_attach <- lm(attach ~ group1 +group3 +group4 +group5 +gender +age , data = gum_with_groups)
 summary(model_attach)
 confint(model_attach, level = 0.95)
 
@@ -240,7 +299,7 @@ tab_model(model_attach,
           title = "Linear Regression Output of Treatment Groups, Gender on Attachment Loss",
           show.stat = TRUE,
           dv.labels = "Change in Attachment Loss",
-          pred.labels = c("(Intercept)", "(Placebo)","(Low)", "(Medium)", "(High)", "gender"))
+          pred.labels = c("(Intercept)", "(Placebo)","(Low)", "(Medium)", "(High)", "gender", "age"))
         
 
 
@@ -263,7 +322,7 @@ tab_model(model_pd,
 
 
 
-```{r, echo = FALSE}
+```{r}
 #test assumption of linearity 
 #dont need to test for linearity with categorical variables 
 #good graph for presentation 
@@ -280,8 +339,9 @@ ggplot(gum, aes(x = factor(trtgroup), y = attach, color = factor(trtgroup))) +
 ```
 
 
-```{r, echo = FALSE}
-#dont need linearity for assumption with categorical predictor variables 
+```{r}
+#dont need linearity for assumption with categorical predictor variables
+#make box and whisker plots for overview 
 ggplot(gum, aes(x = factor(trtgroup), y = pd, color = factor(trtgroup))) +
   geom_boxplot() +
   stat_summary(fun = mean, geom = "point", shape = 3, size = 3, color = "black") +  # Adds mean points
@@ -293,16 +353,10 @@ ggplot(gum, aes(x = factor(trtgroup), y = pd, color = factor(trtgroup))) +
   ) +
   theme_minimal()
 ```
-#```{r, echo = false}
-#extract residuals from attachment loss model 
-#test normality with a Q-Q plot 
-#res_attach <- resid(model_attach)
-#qqnorm(res_attach)
-#qqline(res_attach)
-#```
 
 
-```{r, echo=FALSE}
+
+```{r}
 
 #calculate residuals and fitted values, of my models 
 
@@ -321,7 +375,7 @@ pd_resid <- resid(model_pd)
 #noted tiny outlier, ew may need to study in further stufy 
 
 
-```{r, echo=FALSE}
+```{r}
 
 # Plot Residuals vs Fitted for attachment depth  (Homoscedasticity)
 ggplot(data = NULL, aes(x = a_fitted, y = a_resid)) +
@@ -347,7 +401,7 @@ ggplot(data = NULL, aes(x = pd_fitted, y = pd_resid)) +
 
 
 Normality 
-```{r, echo = FALSE}
+```{r}
 
 # QQ of attachment loss Plot for Normality
 ggplot(data = NULL, aes(sample = a_resid)) +
@@ -370,44 +424,16 @@ ggplot(data = NULL, aes(sample = pd_resid)) +
 
 ```
 
-```{r, echo = FALSE}
 
-# Plot Residuals vs Index (Independence)
-ggplot(data = NULL, aes(x = seq_along(a_resid), y = a_resid)) +
-  geom_point() +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-  labs(title = "Residuals vs Index",
-       x = "Index",
-       y = "Residuals") +
-  theme_minimal()
+```{r}
+#fit a model with all variables
+model_attach_full <- lm(attach ~ group1 +group3 +group4 +group5 + age + gender + smoker + sites + race, data = gum_with_groups)
 
-#x = seq_along(a_residuals) creates a sequence of numbers from 1 to the length of a_residuals, effectively creating an index for each residual. This is useful for visualizing the order of residuals.
-
-
-```
-
-```{r, echo = FALSE}
-#for pocket Depth 
-ggplot(data = NULL, aes(x = seq_along(pd_resid), y = pd_resid)) +
-  geom_point() +
-  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
-  labs(title = "Residuals vs Index (Pocket Depth)",
-       x = "Index",
-       y = "Residuals") +
-  theme_minimal()
-
-
-```
-
-```{r, echo=FALSE}
-#fit a model with my groups as dummy variables
-model_attach <- lm(attach ~ group1 +group3 +group4 +group5 + age + gender + smoker + sites + race, data = gum_with_groups)
-model_attach
 
 summary(model_attach)
 #make additional model for group 2
-model_pd <- lm(pd ~ group1 +group3 +group4 +group5 + age + gender + smoker + sites + race, data = gum_with_groups)
-model_pd
+model_pd_full <- lm(pd ~ group1 +group3 +group4 +group5 + age + gender + smoker + sites + race, data = gum_with_groups)
+
 
 #Some are showing significance but not after the Bonferroni adjustment
 
@@ -476,7 +502,7 @@ manova_results %>%
 summary.aov(manova_model)
 
 ```
-
+Code for creating histograms is below: we decided use of box and whisker plots was more useful 
 
 ```{r}
 
@@ -525,6 +551,7 @@ ggplot(gum_long, aes(x = trtgroup, y = Value, fill = Measure)) +
   scale_fill_manual(values = c("avg_attach" = "blue", "avg_pd" = "green"),
                     labels = c("Attachment Loss", "Pocket Depth")) +
   theme_minimal()
+#
 
 ```
 
