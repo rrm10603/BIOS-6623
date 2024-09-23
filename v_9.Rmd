@@ -1,0 +1,565 @@
+---
+title: "RMD of Project"
+author: "Rob McNeil and Jessica Chaffee"
+date: "2024-09-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+
+
+
+```{r}
+#load libraries and read in the data- change pathway as necessary 
+library(tidyverse)
+library(dplyr)
+library(lme4)
+library(ggplot2)
+library(VIM)
+library(naniar)
+library(readr)
+library(kableExtra)
+library(finalfit)
+library(broom)
+library(sjPlot)
+library(StepReg)
+
+getwd()
+gum <- read_csv("C:/Users/rrm10/OneDrive/Desktop/advanced data analysis/Project1_data.csv")
+#View(Project1_data)
+
+```
+
+
+```{r}
+# Visualize where data is missing 
+
+
+aggr(gum, col=c('navyblue','red'), numbers=TRUE, sortVars=TRUE, labels=names(gum), cex.axis=0.7, gap=3, ylab=c("Missing data","Pattern"))
+
+vis_miss(gum)
+
+```
+
+
+
+```{r}
+gum$attach1yr_missing <- ifelse(is.na(gum$attach1year), 1, 0)
+gum$pd1yr_missing <- ifelse(is.na(gum$pd1year),1,0)
+
+
+# Find the percent of each treatent group that has missing follow up data 
+missing_percentage_table_by_trtgroup <- gum %>%
+  group_by(trtgroup) %>%
+  summarize(
+    percent_missing_attach = mean(attach1yr_missing) * 100,
+    percent_missing_pd = mean (pd1yr_missing) * 100)
+
+print(missing_percentage_table_by_trtgroup)
+
+```
+
+```{r}
+# Run a chi-squared test to see if the association between missing attachment follow up and treatment group is significant (ch-square shows this is not significant)
+chisq_test_trtgroup_attach <- chisq.test(table(gum$attach1yr_missing, gum$trtgroup))
+print(chisq_test_trtgroup_attach)
+```
+```{r}
+# Run a chi-squared test to see if the association between missing pd follow up and treatment group is significant
+chisq_test_trtgroup_pd <- chisq.test(table(gum$pd1yr_missing, gum$trtgroup))
+print(chisq_test_trtgroup_pd)
+```
+```{r}
+# Now that the chi-squared has shown us that missingness is not significantly associated with treatment group do the same thing with demographic information to avoid bias data
+
+missing_percentage_table_by_gender <- gum %>%
+  group_by(gender) %>%
+  summarize(
+    percent_missing_attach = mean(attach1yr_missing) * 100,
+    percent_missing_pd = mean (pd1yr_missing) * 100)
+
+print(missing_percentage_table_by_gender)
+
+missing_percentage_table_by_race <- gum %>%
+  group_by(race) %>%
+  summarize(
+    percent_missing_attach = mean(attach1yr_missing) * 100,
+    percent_missing_pd = mean (pd1yr_missing) * 100)
+
+print(missing_percentage_table_by_race)
+
+missing_percentage_table_by_smoker <- gum %>%
+  group_by(smoker) %>%
+  summarize(
+    percent_missing_attach = mean(attach1yr_missing) * 100,
+    percent_missing_pd = mean (pd1yr_missing) * 100)
+
+print(missing_percentage_table_by_smoker)
+
+```
+```{r}
+# Run chi-squared to see if missing data is significantly associated with any of the demographic variables 
+
+
+# For gender
+chisq_test_gender_attach <- chisq.test(table(gum$attach1yr_missing, gum$gender))
+print(chisq_test_gender_attach)
+
+chisq_test_gender_pd <- chisq.test(table(gum$pd1yr_missing, gum$gender))
+print(chisq_test_gender_pd)
+
+# For race (results say they may be incorrect but that is only because some races have too small of a sample size, p value should be fine)
+chisq_test_race_attach <- chisq.test(table(gum$attach1yr_missing, gum$race))
+print(chisq_test_race_attach)
+
+chisq_test_race_pd <- chisq.test(table(gum$pd1yr_missing, gum$race))
+print(chisq_test_race_pd)
+
+# For Age (results say they may be incorrect but that is only because some races have too small of a sample size, p value should be fine)
+chisq_test_age_attach <- chisq.test(table(gum$attach1yr_missing, gum$age))
+print(chisq_test_age_attach)
+
+chisq_test_age_pd <- chisq.test(table(gum$pd1yr_missing, gum$age))
+print(chisq_test_age_pd)
+
+# For smoking status
+chisq_test_smoker_attach <- chisq.test(table(gum$attach1yr_missing, gum$smoker))
+print(chisq_test_smoker_attach)
+
+chisq_test_smoker_pd <- chisq.test(table(gum$pd1yr_missing, gum$smoker))
+print(chisq_test_smoker_pd)
+```
+
+
+
+```{r}
+#create correlation matrix 
+
+gum_clean <- gum %>%
+     select(pdbase, attachbase, pd1year, attach1year, gender, age, race, sites) %>%
+     na.omit() 
+
+# S Calculate the correlation matrix
+ correlation_matrix <- cor(gum_clean)
+ 
+ print(correlation_matrix)
+ 
+ #matrix shows correlation, consider use of change variable 
+```
+
+```{r}
+
+#create base attachment and pocket depth outcome variables 
+gum <- gum %>%
+  mutate( 
+    attach = attach1year - attachbase,
+    pd     = pd1year    - pdbase
+  )
+```
+
+
+```{r}
+
+#create dummy variable for groups 
+gum_with_groups <- gum %>%
+  mutate(
+    group1 = if_else(trtgroup == 1, 1, 0),
+    group2 = if_else(trtgroup == 2, 1, 0),
+    group3 = if_else(trtgroup == 3, 1, 0),
+    group4 = if_else(trtgroup == 4, 1, 0),
+    group5 = if_else(trtgroup == 5, 1, 0),
+    group_label = case_when(
+      trtgroup == 1 ~ "Placebo",
+      trtgroup == 2 ~ "No Treatment",
+      trtgroup == 3 ~ "Low Treatment",
+      trtgroup == 4 ~ "Medium Treatment",
+      trtgroup == 5 ~ "High Treatment",
+      TRUE ~ NA_character_  # For any unmatched cases
+    )
+  )
+
+```
+
+```{r}
+# Create gum2 by removing rows with missing values for attach1year and pd1year
+gum2 <- gum %>%
+  filter(!is.na(attach1year) & !is.na(pd1year))
+
+# View the new dataset gum2
+print(gum2)
+```
+
+
+
+```{r}
+
+#code for table 1 
+demographic_summary <- gum %>% #Use gum dataset to see summary table for all 130 participants, use gum2 data set for the summary statistics of just the participants in the final analysis
+  group_by(trtgroup) %>%
+  summarise(
+    `Male (%)` = as.character(round(sum(gender == 1, na.rm = TRUE) / n() * 100, 2)),
+    `Female (%)` = as.character(round(sum(gender == 2, na.rm = TRUE) / n() * 100, 2)),
+    `Native American (%)` = as.character(round(sum(race == 1, na.rm = TRUE) / n() * 100, 2)),
+    `African American (%)` = as.character(round(sum(race == 2, na.rm = TRUE) / n() * 100, 2)),
+    `Asian (%)` = as.character(round(sum(race == 4, na.rm = TRUE) / n() * 100, 2)),
+    `White (%)` = as.character(round(sum(race == 5, na.rm = TRUE) / n() * 100, 2)),
+    `Age (Mean(SD))` = as.character(paste0(round(mean(age, na.rm = TRUE), 2), " (", round(sd(age, na.rm = TRUE), 2), ")")),
+    `Smoker (%)` = as.character(round(sum(smoker == 1, na.rm = TRUE) / n() * 100, 2)),
+    `Initial Attachment Loss (Mean(SD))` = as.character(paste0(round(mean(attachbase, na.rm = TRUE), 2), " (", round(sd(attachbase, na.rm = TRUE), 2), ")")),
+    `Initial Pocket Depth (Mean(SD))` = as.character(paste0(round(mean(pdbase, na.rm = TRUE), 2), " (", round(sd(pdbase, na.rm = TRUE), 2), ")")),
+    `Attachment Loss After 1 Year (Mean(SD))` = as.character(paste0(round(mean(attach1year, na.rm = TRUE), 2), " (", round(sd(attach1year, na.rm = TRUE), 2), ")")),
+    `Pocket Depth After 1 Year (Mean(SD))` = as.character(paste0(round(mean(pd1year, na.rm = TRUE), 2), " (", round(sd(pd1year, na.rm = TRUE), 2), ")"))
+  ) %>%
+  ungroup() %>%
+  mutate(trtgroup = case_when(
+    trtgroup == 1 ~ "Placebo (group 1)",
+    trtgroup == 2 ~ "No Treatment (group 2)",
+    trtgroup == 3 ~ "Low Concentration (group 3)",
+    trtgroup == 4 ~ "Medium Concentration (group 4)",
+    trtgroup == 5 ~ "High Concentration (group 5)"
+  )) %>%
+  pivot_longer(cols = -trtgroup, names_to = "Demographic", values_to = "Value") %>%
+  pivot_wider(names_from = trtgroup, values_from = Value)
+
+# Print the summary table
+kable(demographic_summary, caption = "Table 1: Demographic and Other Characteristic Information by Treatment Group")
+
+```
+
+
+```{r}
+# Print the summary table 1 with lines between rows
+kable(demographic_summary, caption = "Table 1: Demographic and Other Characteristic Information by Treatment Group") %>%
+  kable_styling() %>%
+  row_spec(0, bold = TRUE) %>% # Bold the header
+  row_spec(1:nrow(demographic_summary), extra_css = "border-top: 1px solid black; border-bottom: 1px solid black;")
+
+```
+
+
+
+```{r}
+#fit a model with all variables
+model_attach_full <- lm(attach ~ group1 +group3 +group4 +group5 + age + gender + smoker + sites + race, data = gum_with_groups)
+
+
+#make additional model for pocket depth, full
+model_pd_full <- lm(pd ~ group1 +group3 +group4 +group5 + age + gender + smoker + sites + race, data = gum_with_groups)
+
+
+#Some are showing significance but not after the Bonferroni adjustment
+
+
+```
+
+```{r}
+#perform stepwise regression for model selection 
+# Remove rows with NA values in the relevant columns
+gum_clean <- gum_with_groups %>%
+  filter(!is.na(attach) & !is.na(group1) & !is.na(group2) & 
+         !is.na(group3) & !is.na(group4) & !is.na(group5) & 
+         !is.na(age) & !is.na(gender) & !is.na(smoker) & 
+         !is.na(sites) & !is.na(race))
+
+# Define the formula for attachment
+attach_formula <- attach ~ trtgroup + age + gender + smoker + sites + race
+
+# Perform stepwise regression for attachment on the cleaned data
+stepwise_model_attach <- stepwise(formula = attach_formula,
+                                   data = gum_clean,
+                                   type = "linear",
+                                   include = c('trtgroup'), # Adjust as needed
+                                   strategy = "bidirection",
+                                   metric = c("AIC", "BIC"))
+
+# view stepwise model
+stepwise_model_attach
+
+#for pocket depth
+
+# Define the formula for attachment
+pd_formula <- pd ~ trtgroup + age + gender + smoker + sites + race
+
+# Perform stepwise regression for attachment on the cleaned data
+stepwise_model_pd <- stepwise(formula = pd_formula,
+                                   data = gum_clean,
+                                   type = "linear",
+                                   include = c('trtgroup'), # Adjust as needed
+                                   strategy = "bidirection",
+                                   metric = c("AIC", "BIC"))
+stepwise_model_pd
+```
+
+
+
+Linear Regression 
+```{r}
+#fit a model with my groups as dummy variables
+model_attach <- lm(attach ~ group1 +group3 +group4 +group5 +gender +age , data = gum_with_groups)
+summary(model_attach)
+confint(model_attach, level = 0.95)
+
+#output final model with SjPlot package
+tab_model(model_attach,
+          title = "Linear Regression Output of Treatment Groups, Gender, Age on Attachment Loss",
+          show.stat = TRUE,
+          dv.labels = "Change in Attachment Loss",
+          pred.labels = c("(Intercept)", "(Placebo)","(Low)", "(Medium)", "(High)", "gender", "age"))
+        
+
+
+model_pd <- lm(pd ~ group1 +group3 +group4 +group5 +gender, data = gum_with_groups)
+
+summary(model_pd)
+confint(model_pd, level = 0.95)
+
+#output model of PD with sjPlot
+tab_model(model_pd,
+          title = "Linear Regression Output of Treatment Groups, Gender on Pocket Depth",
+          show.stat = TRUE,
+          dv.labels = "Change in Pocket Depth",
+          pred.labels = c("(Intercept)", "(Placebo)","(Low)", "(Medium)", "(High)", "gender"))
+
+
+
+```
+
+
+
+
+```{r}
+#test assumption of linearity 
+#dont need to test for linearity with categorical variables 
+#good graph for presentation 
+ggplot(gum, aes(x = factor(trtgroup), y = attach, color = factor(trtgroup))) +
+  geom_boxplot() +
+  stat_summary(fun = mean, geom = "point", shape = 3, size = 3, color = "black") +  # Adds mean points
+  labs(
+    title = "Figure 1: Box Plot of Mean Attachment Loss by Treatment Group",
+    x = "Treatment Group",
+    y = "Attachment Loss",
+    color = "Treatment Group"
+  ) +
+  theme_minimal()
+```
+
+
+```{r}
+#dont need linearity for assumption with categorical predictor variables
+#make box and whisker plots for overview 
+ggplot(gum, aes(x = factor(trtgroup), y = pd, color = factor(trtgroup))) +
+  geom_boxplot() +
+  stat_summary(fun = mean, geom = "point", shape = 3, size = 3, color = "black") +  # Adds mean points
+  labs(
+    title = " Figure 2: Box Plot of Mean Pocket Depth by Treatment Group",
+    x = "Treatment Group",
+    y = "Pocket Depth",
+    color = "Treatment Group"
+  ) +
+  theme_minimal()
+```
+
+
+
+```{r}
+
+#calculate residuals and fitted values, of my models 
+
+a_fitted <- predict(model_attach)
+a_resid <-  resid(model_attach)
+
+pd_fitted <- predict(model_pd)
+pd_resid <- resid(model_pd)
+
+ 
+
+
+```
+
+
+#noted tiny outlier, ew may need to study in further stufy 
+
+
+```{r}
+
+# Plot Residuals vs Fitted for attachment depth  (Homoscedasticity)
+ggplot(data = NULL, aes(x = a_fitted, y = a_resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Figure 6: Attachment Loss Residuals vs Fitted", 
+       x = "Fitted Values",
+       y = "Residuals") +
+  theme_minimal()
+
+
+
+#plot residuals vs fitted for pocket depth 
+ggplot(data = NULL, aes(x = pd_fitted, y = pd_resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Figure 7: Pocket Depth Residuals vs Fitted", 
+       x = "Fitted Values",
+       y = "Residuals") +
+  theme_minimal()
+
+```
+
+
+Normality 
+```{r}
+
+# QQ of attachment loss Plot for Normality
+ggplot(data = NULL, aes(sample = a_resid)) +
+  geom_qq() +
+  geom_qq_line() +
+  labs(title = "Figure 4: QQ Plot of Attachment Loss Model Residuals",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+
+
+#  QQ Plot for Normality (pocket depth)
+ggplot(data = NULL, aes(sample = pd_resid)) +
+  geom_qq() +
+  geom_qq_line() +
+  labs(title = "Figure 5:QQ Plot of Pocket Depth Model Residuals",
+       x = "Theoretical Quantiles",
+       y = "Sample Quantiles") +
+  theme_minimal()
+
+```
+
+
+```{r}
+#fit a model with all variables
+model_attach_full <- lm(attach ~ group1 +group3 +group4 +group5 + age + gender + smoker + sites + race, data = gum_with_groups)
+
+
+summary(model_attach)
+#make additional model for group 2
+model_pd_full <- lm(pd ~ group1 +group3 +group4 +group5 + age + gender + smoker + sites + race, data = gum_with_groups)
+
+
+#Some are showing significance but not after the Bonferroni adjustment
+
+summary(model_pd)
+```
+
+
+```{r}
+# Fit the MANOVA model
+manova_model <- manova(cbind(pd, attach) ~ group1 + group3 + group4 + group5 + gender, data = gum_with_groups)
+
+# Summarize the MANOVA model
+summary(manova_model)
+
+
+summary(manova_model, test = "Pillai") 
+
+```
+
+```{r, echo = FALSE}
+
+# Get the summary of the MANOVA model using Pillai's test
+manova_summary <- summary(manova_model, test = "Pillai")
+
+# Extract relevant results into a tidy format
+manova_results <- data.frame(
+     Effect = rownames(manova_summary$stats),
+     Df = manova_summary$stats[, "Df"],
+     Pillai = manova_summary$stats[, "Pillai"],
+     approx_F = manova_summary$stats[, "approx F"],
+     num_Df = manova_summary$stats[, "num Df"],
+     den_Df = manova_summary$stats[, "den Df"],
+     p.value = manova_summary$stats[, "Pr(>F)"]
+ )
+
+# Remove the "Residuals" row for clarity
+manova_results <- manova_results[-which(manova_results$Effect == "Residuals"), ]
+
+# Create a mapping of group names to labels
+group_labels <- c(
+    group1 = "Placebo",
+    group2 = "No Treatment",
+    group3 = "Low Treatment",
+    group4 = "Medium Treatment",
+    group5 = "High Treatment",
+    gender = "Gender"
+)
+
+# Replace Effect names with labels
+manova_results$Effect <- recode(manova_results$Effect, !!!group_labels)
+
+# Create a nice table
+manova_results %>%
+    kbl(caption = "MANOVA Results (Pillai's Trace)") %>%
+    kable_styling(full_width = F)
+
+
+
+```
+
+
+
+
+```{r}
+# Univariate ANOVA for each outcome
+summary.aov(manova_model)
+
+```
+Code for creating histograms is below: we decided use of box and whisker plots was more useful 
+
+```{r}
+
+gum_summary <- gum %>%
+  group_by(trtgroup) %>%
+  summarise(
+    avg_attach = mean(attach, na.rm = TRUE),
+    avg_pd = mean(pd, na.rm = TRUE)
+  )
+
+```
+
+```{r}
+# Histogram for Average Attachment Loss by Treatment Group
+ggplot(gum_summary, aes(x = trtgroup, y = avg_attach, fill = trtgroup)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Average Attachment Loss by Treatment Group",
+       x = "Treatment Group",
+       y = "Average Attachment Loss") +
+  theme_minimal()
+
+```
+```{r}
+# Histogram for Average Pocket Depth by Treatment Group
+ggplot(gum_summary, aes(x = trtgroup, y = avg_pd, fill = trtgroup)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Average Pocket Depth by Treatment Group",
+       x = "Treatment Group",
+       y = "Average Pocket Depth") +
+  theme_minimal()
+
+```
+```{r}
+# Convert gum_summary to long format for comparison
+gum_long <- gum_summary %>%
+  pivot_longer(cols = c(avg_attach, avg_pd), 
+               names_to = "Measure", 
+               values_to = "Value")
+
+# Combined histogram
+ggplot(gum_long, aes(x = trtgroup, y = Value, fill = Measure)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Average Attachment Loss and Pocket Depth by Treatment Group",
+       x = "Treatment Group",
+       y = "Average Value") +
+  scale_fill_manual(values = c("avg_attach" = "blue", "avg_pd" = "green"),
+                    labels = c("Attachment Loss", "Pocket Depth")) +
+  theme_minimal()
+#
+
+```
+
