@@ -172,8 +172,8 @@ gum_with_groups <- gum %>%
     group4 = if_else(trtgroup == 4, 1, 0),
     group5 = if_else(trtgroup == 5, 1, 0),
     group_label = case_when(
-      trtgroup == 1 ~ "No Treatment",
-      trtgroup == 2 ~ "Placebo",
+      trtgroup == 1 ~ "Placebo",
+      trtgroup == 2 ~ "No Treatment",
       trtgroup == 3 ~ "Low Treatment",
       trtgroup == 4 ~ "Medium Treatment",
       trtgroup == 5 ~ "High Treatment",
@@ -460,22 +460,22 @@ manova_summary <- summary(manova_model, test = "Pillai")
 
 # Extract relevant results into a tidy format
 manova_results <- data.frame(
-    Effect = rownames(manova_summary$stats),
-    Df = manova_summary$stats[, "Df"],
-    Pillai = manova_summary$stats[, "Pillai"],
-    approx_F = manova_summary$stats[, "approx F"],
-    num_Df = manova_summary$stats[, "num Df"],
-    den_Df = manova_summary$stats[, "den Df"],
-    p.value = manova_summary$stats[, "Pr(>F)"]
-)
+     Effect = rownames(manova_summary$stats),
+     Df = manova_summary$stats[, "Df"],
+     Pillai = manova_summary$stats[, "Pillai"],
+     approx_F = manova_summary$stats[, "approx F"],
+     num_Df = manova_summary$stats[, "num Df"],
+     den_Df = manova_summary$stats[, "den Df"],
+     p.value = manova_summary$stats[, "Pr(>F)"]
+ )
 
 # Remove the "Residuals" row for clarity
 manova_results <- manova_results[-which(manova_results$Effect == "Residuals"), ]
 
 # Create a mapping of group names to labels
 group_labels <- c(
-    group1 = "No Treatment",
-    group2 = "Placebo",
+    group1 = "Placebo",
+    group2 = "No Treatment",
     group3 = "Low Treatment",
     group4 = "Medium Treatment",
     group5 = "High Treatment",
